@@ -15,12 +15,20 @@ typedef struct {
 } CAMPO;
 
 typedef struct {
-	void **registro;
+	int chave;
+	int offset;
+} INDEX; //AINDA NAO USEI
+
+typedef struct {
+	void **registro; //AINDA NAO USEI
 	int n_registros;
 	CAMPO *campo;
+	INDEX *index; //AINDA NAO USEI
 	int n_campos;
+	char *nomeArquivo;
 	char *nomeData;
 	int tamanhoRegistro;
+	char *nomeIndex;
 } LISTA;
 
 char *lerNomeSchema(void) {
@@ -37,7 +45,10 @@ LISTA *criarLista (void) {
 	lista->n_campos = 0;
 	lista->tamanhoRegistro = 0;
 	lista->registro = NULL;
+	lista->index = NULL;
+	lista->nomeIndex = NULL;
 	lista->nomeData = NULL;
+	lista->nomeArquivo = NULL;
 	lista->campo = NULL;
 	return lista;
 }
@@ -65,7 +76,7 @@ void processarSchema (char *nomeSchema, LISTA *lista) {
 	fp = fopen(nomeSchema, "r");
 	while (fgetc(fp) != ' ');
 	fscanf(fp, "%s", token);
-	lista->nomeData = token;
+	lista->nomeArquivo = token;
 	token = (char*) malloc(30*sizeof(char));
 	fscanf(fp, "%s", token);
 	do {
@@ -91,8 +102,11 @@ void processarSchema (char *nomeSchema, LISTA *lista) {
 			lista->n_campos++;
 		}
 	} while (!feof(fp));
-	free(token);
+	if(token != NULL) free(token);
 	fclose(fp);
+	lista->nomeData = (char*)malloc(sizeof(char)*30);
+	strcpy(lista->nomeData, lista->nomeArquivo);
+	strcat(lista->nomeData, ".data");
 }
 
 void calculaTamanhos(LISTA *lista) {
@@ -130,7 +144,7 @@ void dump_data(LISTA *lista) {
 	int i, n, j;
 	FILE *fp = NULL;
 	void *p = NULL;
-	fp = fopen(strcat(lista->nomeData, ".data"), "r");
+	fp = fopen(lista->nomeData, "r");
 	fseek(fp, 0, SEEK_END);
 	lista->n_registros = ((ftell(fp))/(double)(lista->tamanhoRegistro));
 	fseek(fp, 0, SEEK_SET);
@@ -162,6 +176,27 @@ void dump_data(LISTA *lista) {
 	fclose(fp);
 }
 
+void criaArquivoIndex(LISTA *lista) {
+	FILE *fp = NULL;
+	int i;
+	i = 0;
+	while(!lista->campo[i].order) i++;
+	if(lista->campo[i].order) {
+		lista->nomeIndex = (char*)malloc(sizeof(char)*30);
+		strcpy(lista->nomeIndex, lista->nomeArquivo);
+		lista->nomeIndex = strcat(lista->nomeIndex, "-");
+		lista->nomeIndex = strcat(lista->nomeIndex, lista->campo[i].nome);
+		lista->nomeIndex = strcat(lista->nomeIndex, ".idx");
+		//ler as chaves e offsets do binario...
+		
+		
+		ordenaIndex(lista);
+		
+		//fp = fopen(nomeIndex, "w");
+		//fclose(fp);
+	}
+}
+
 void liberaCampos(LISTA *lista) {
 	int i, n;
 	n = lista->n_campos;
@@ -179,6 +214,7 @@ int main (int argc, char *arg[]) {
 	lista = criarLista();
 	processarSchema(nomeSchema, lista);
 	calculaTamanhos(lista);
+	criaArquivoIndex(lista);
 	
 	dump_schema(lista);
 	dump_data(lista);
@@ -186,6 +222,8 @@ int main (int argc, char *arg[]) {
 	
 	liberaCampos(lista);
 	free(lista->nomeData);
+	free(lista->nomeIndex);
+	free(lista->nomeArquivo);
 	free(nomeSchema);
 	free(lista);
 	return 0;
