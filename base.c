@@ -15,11 +15,7 @@ typedef struct {
 } CAMPO;
 
 typedef struct {
-	void **vetor;
-} REGISTRO;
-
-typedef struct {
-	REGISTRO *registro;
+	void **registro;
 	int n_registros;
 	CAMPO *campo;
 	int n_campos;
@@ -130,6 +126,42 @@ void dump_schema (LISTA *lista) {
 	}
 }
 
+void dump_data(LISTA *lista) {
+	int i, n, j;
+	FILE *fp = NULL;
+	void *p = NULL;
+	fp = fopen(strcat(lista->nomeData, ".data"), "r");
+	fseek(fp, 0, SEEK_END);
+	lista->n_registros = ((ftell(fp))/(double)(lista->tamanhoRegistro));
+	fseek(fp, 0, SEEK_SET);
+	n = lista->n_campos;
+	for(i = 0; i < lista->n_registros; i++) {
+		for(j = 0; j < n; j++) {
+			switch (lista->campo[j].tipo) {
+				case INT:
+					p = malloc(sizeof(int));
+					fread(p, sizeof(int), 1, fp);
+					printf("%s = %d\n", lista->campo[j].nome, *((int*)p));
+					free(p);
+					break;
+				case DOUBLE:
+					p = malloc(sizeof(double));
+					fread(p, sizeof(double), 1, fp);
+					printf("%s = %.2lf\n", lista->campo[j].nome, *((double*)p));
+					free(p);
+					break;
+				case CHAR:
+					p = malloc(sizeof(char)*(lista->campo[j].tamanho));
+					fread(p, sizeof(char), lista->campo[j].tamanho, fp);
+					printf("%s = %s\n", lista->campo[j].nome, (char*)p);
+					free(p);
+					break;
+			}
+		}
+	}
+	fclose(fp);
+}
+
 void liberaCampos(LISTA *lista) {
 	int i, n;
 	n = lista->n_campos;
@@ -149,6 +181,8 @@ int main (int argc, char *arg[]) {
 	calculaTamanhos(lista);
 	
 	dump_schema(lista);
+	dump_data(lista);
+	//falta trabalhar com os indices...
 	
 	liberaCampos(lista);
 	free(lista->nomeData);
