@@ -216,7 +216,7 @@ int compChar(INDEX *a, INDEX *b) {
 void ordenaIndex(LISTA *lista, int(*f)(INDEX*, INDEX*)) {
 	int i, j;
 	INDEX eleito;
-	for (i = 0; i < lista->n_index-1; i++) {
+	for (i = 0; i < lista->n_index; i++) {
 		eleito = lista->index[i];
 		j = i;
 		while ((j > 0) && f(&lista->index[j-1], &eleito)) {
@@ -226,6 +226,7 @@ void ordenaIndex(LISTA *lista, int(*f)(INDEX*, INDEX*)) {
 		lista->index[j] = eleito;
 	}
 }
+
 /*
 void imprimeIndex(LISTA  *lista, int tipo) {
 	int i;
@@ -234,6 +235,7 @@ void imprimeIndex(LISTA  *lista, int tipo) {
 	}
 }
 */
+
 
 void liberaIndex(LISTA *lista) {
 	int i;
@@ -285,13 +287,49 @@ void criaArquivoIndex(LISTA *lista) {
 			if(lista->campo[i].tipo == CHAR) {
 				ordenaIndex(lista, &compChar);
 			}
-			imprimeIndex(lista, lista->campo[i].tipo); //temporario
+			//imprimeIndex(lista, lista->campo[i].tipo); //temporario
 			//gravar no arquivo
 			gravaIndex(lista, lista->campo[i].tamanho, i);
 			//free no vetor de index, zerar n_index
 			liberaIndex(lista);
 		}
 		soma += lista->campo[i].tamanho;
+	}
+}
+
+void dump_index(LISTA *lista) {
+	int i, j, offset;
+	FILE *fp = NULL;
+	void *p = NULL;
+	char *nomeIndex = NULL;
+	for(i = 0; i < lista->n_campos; i++) {
+		nomeIndex = (char*)malloc(sizeof(char)*30);
+		strcpy(nomeIndex, lista->nomeArquivo);
+		nomeIndex = strcat(nomeIndex, "-");
+		nomeIndex = strcat(nomeIndex, lista->campo[i].nome);
+		nomeIndex = strcat(nomeIndex, ".idx");
+		fp = fopen(nomeIndex, "r");
+		if(fp != NULL) {
+			for(j = 0; j < lista->n_registros; j++) {
+				p = malloc(lista->campo[i].tamanho);
+				fread(p, lista->campo[i].tamanho, 1, fp);
+				fread(&offset, sizeof(int), 1, fp);
+				switch(lista->campo[i].tipo) {
+					case INT:
+						printf("%d = %d\n", *(int*)p, offset);
+						break;
+					case DOUBLE:
+						printf("%lf = %d\n", *(double*)p, offset);
+						break;
+					case CHAR:
+						printf("%s = %d\n", (char*)p, offset);
+						break;
+				}
+				free(p);
+			}
+			fclose(fp);
+		}
+		free(nomeIndex);
 	}
 }
 
@@ -313,14 +351,14 @@ int main (int argc, char *arg[]) {
 	lista = criarLista();
 	processarSchema(nomeSchema, lista);
 	calculaTamanhos(lista);
-	criaArquivoIndex(lista); //falta fazer
+	criaArquivoIndex(lista);
 	opt = (char*) malloc(sizeof(char)*20);
 	
 	do {
 		scanf("%s", opt);
 		if(!strcmp(opt, "dump_schema")) dump_schema(lista);
 		if(!strcmp(opt, "dump_data")) dump_data(lista);
-		//if(!strcmp(opt, "dump_index")) dump_index(lista);
+		if(!strcmp(opt, "dump_index")) dump_index(lista);
 	} while(strcmp(opt, "exit"));
 	
 	//falta trabalhar com os indices...
