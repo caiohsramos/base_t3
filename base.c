@@ -15,7 +15,7 @@ typedef struct {
 } CAMPO;
 
 typedef struct {
-	int chave;
+	void *chave;
 	int offset;
 } INDEX; //AINDA NAO USEI
 
@@ -23,12 +23,13 @@ typedef struct {
 	void **registro; //AINDA NAO USEI
 	int n_registros;
 	CAMPO *campo;
-	INDEX *index; //AINDA NAO USEI
+	INDEX *index; //USEI
 	int n_campos;
+	int n_index;
+	int tipoIndex;
 	char *nomeArquivo;
 	char *nomeData;
 	int tamanhoRegistro;
-	char *nomeIndex;
 } LISTA;
 
 char *lerNomeSchema(void) {
@@ -43,10 +44,11 @@ LISTA *criarLista (void) {
 	LISTA *lista = (LISTA*) malloc(sizeof(LISTA));
 	lista->n_registros = 0;
 	lista->n_campos = 0;
+	lista->n_index = 0;
 	lista->tamanhoRegistro = 0;
+	lista->tipoIndex = 0;
 	lista->registro = NULL;
 	lista->index = NULL;
-	lista->nomeIndex = NULL;
 	lista->nomeData = NULL;
 	lista->nomeArquivo = NULL;
 	lista->campo = NULL;
@@ -130,7 +132,7 @@ void calculaTamanhos(LISTA *lista) {
 void dump_schema (LISTA *lista) {
 	int i, n;
 	n = lista->n_campos;
-	printf("table %s(%d bytes)\n", lista->nomeData, lista->tamanhoRegistro);
+	printf("table %s(%d bytes)\n", lista->nomeArquivo, lista->tamanhoRegistro);
 	for (i = 0; i < n; i++) {
 		if (lista->campo[i].order == 0) {
 			printf("%s %s(%d bytes)\n", lista->campo[i].nome, lista->campo[i].nomeTipo, lista->campo[i].tamanho);
@@ -176,24 +178,120 @@ void dump_data(LISTA *lista) {
 	fclose(fp);
 }
 
-void criaArquivoIndex(LISTA *lista) {
+void novoIndex(LISTA *lista, int tipo, int offset, int tamanho) {
+	FILE *fp = NULL;
+	fp = fopen(lista->nomeData, "r");
+	fseek(fp, offset, SEEK_SET);
+	lista->index = (INDEX*) realloc(lista->index, sizeof(INDEX)*(lista->n_index+1));
+	lista->index[lista->n_index].chave = malloc(tamanho);
+	fread(lista->index[lista->n_index].chave, tamanho, 1, fp);
+	lista->index[lista->n_index].offset = offset;
+	lista->tipoIndex = tipo;
+	lista->n_index++;
+	fclose(fp);
+}
+
+int compInt(INDEX *a, INDEX *b) {
+	int A, B;
+	A = *((int*)a->chave);
+	B = *((int*)b->chave);
+	if(A > B) return 1;
+	else return 0;
+}
+int compDouble(INDEX *a, INDEX *b) {
+	double A, B;
+	A = *((double*)a->chave);
+	B = *((double*)b->chave);
+	if(A > B) return 1;
+	else return 0;
+}
+int compChar(INDEX *a, INDEX *b) {
+	char *A, *B;
+	A = (char*)a->chave;
+	B = (char*)b->chave;
+	if (strcmp(A, B) > 0) return 1;
+	else return 0;
+} 
+
+void ordenaIndex(LISTA *lista, int(*f)(INDEX*, INDEX*)) {
+	int i, j;
+	INDEX eleito;
+	for (i = 0; i < lista->n_index-1; i++) {
+		eleito = lista->index[i];
+		j = i;
+		while ((j > 0) && f(&lista->index[j-1], &eleito)) {
+			lista->index[j] = lista->index[j-1];
+			j--;
+		}
+		lista->index[j] = eleito;
+	}
+}
+/*
+void imprimeIndex(LISTA  *lista, int tipo) {
+	int i;
+	for(i = 0; i < lista->n_index; i++) {
+		printf("%d = %d\n", *(int*)lista->index[i].chave, lista->index[i].offset);
+	}
+}
+*/
+
+void liberaIndex(LISTA *lista) {
+	int i;
+	for(i = 0; i < lista->n_index; i++) {
+		free(lista->index[i].chave);
+	}
+	free(lista->index);
+	lista->index = NULL;
+}
+
+void gravaIndex(LISTA *lista, int tamanho, int pos) {
 	FILE *fp = NULL;
 	int i;
-	i = 0;
-	while(!lista->campo[i].order) i++;
-	if(lista->campo[i].order) {
-		lista->nomeIndex = (char*)malloc(sizeof(char)*30);
-		strcpy(lista->nomeIndex, lista->nomeArquivo);
-		lista->nomeIndex = strcat(lista->nomeIndex, "-");
-		lista->nomeIndex = strcat(lista->nomeIndex, lista->campo[i].nome);
-		lista->nomeIndex = strcat(lista->nomeIndex, ".idx");
-		//ler as chaves e offsets do binario...
-		
-		
-		ordenaIndex(lista);
-		
-		//fp = fopen(nomeIndex, "w");
-		//fclose(fp);
+	char *nomeIndex = (char*)malloc(sizeof(char)*30);
+	strcpy(nomeIndex, lista->nomeArquivo);
+	nomeIndex = strcat(nomeIndex, "-");
+	nomeIndex = strcat(nomeIndex, lista->campo[pos].nome);
+	nomeIndex = strcat(nomeIndex, ".idx");
+	fp = fopen(nomeIndex, "w");
+	for(i = 0; i < lista->n_index; i++) {
+		fwrite(lista->index[i].chave, tamanho, 1, fp);
+		fwrite(&lista->index[i].offset, sizeof(int), 1, fp);
+	}
+	fclose(fp);
+	free(nomeIndex);
+}
+
+void criaArquivoIndex(LISTA *lista) {
+	FILE *fp = NULL;
+	int i, j, soma = 0;
+	fp = fopen(lista->nomeData, "r");
+	fseek(fp, 0, SEEK_END);
+	lista->n_registros = ((ftell(fp))/(double)(lista->tamanhoRegistro));
+	fclose(fp);
+	for (i = 0; i < lista->n_campos; i++) {
+		if(lista->campo[i].order) {
+			lista->n_index = 0;
+			for(j = 0; j < lista->n_registros; j++) {
+				//criar vetor de indexs
+				novoIndex(lista, lista->campo[i].tipo, (((lista->tamanhoRegistro)*j)+soma), lista->campo[i].tamanho);
+			}
+			//ordenar o vetor de index
+			if(lista->campo[i].tipo == INT) {
+				ordenaIndex(lista, &compInt);
+			}
+			if(lista->campo[i].tipo == DOUBLE) {
+				ordenaIndex(lista, &compDouble);
+			}
+			if(lista->campo[i].tipo == CHAR) {
+				ordenaIndex(lista, &compChar);
+			}
+			imprimeIndex(lista, lista->campo[i].tipo); //temporario
+			//gravar no arquivo
+			gravaIndex(lista, lista->campo[i].tamanho, i);
+			//free no vetor de index, zerar n_index
+			liberaIndex(lista);
+		}
+		soma += lista->campo[i].tamanho;
 	}
 }
 
@@ -209,20 +307,27 @@ void liberaCampos(LISTA *lista) {
 
 int main (int argc, char *arg[]) {
 	char *nomeSchema = NULL;
+	char *opt = NULL;
 	LISTA *lista = NULL;
 	nomeSchema = lerNomeSchema();
 	lista = criarLista();
 	processarSchema(nomeSchema, lista);
 	calculaTamanhos(lista);
-	criaArquivoIndex(lista);
+	criaArquivoIndex(lista); //falta fazer
+	opt = (char*) malloc(sizeof(char)*20);
 	
-	dump_schema(lista);
-	dump_data(lista);
+	do {
+		scanf("%s", opt);
+		if(!strcmp(opt, "dump_schema")) dump_schema(lista);
+		if(!strcmp(opt, "dump_data")) dump_data(lista);
+		//if(!strcmp(opt, "dump_index")) dump_index(lista);
+	} while(strcmp(opt, "exit"));
+	
 	//falta trabalhar com os indices...
 	
+	free(opt);
 	liberaCampos(lista);
 	free(lista->nomeData);
-	free(lista->nomeIndex);
 	free(lista->nomeArquivo);
 	free(nomeSchema);
 	free(lista);
