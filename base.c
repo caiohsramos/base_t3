@@ -178,14 +178,14 @@ void dump_data(LISTA *lista) {
 	fclose(fp);
 }
 
-void novoIndex(LISTA *lista, int tipo, int offset, int tamanho) {
+void novoIndex(LISTA *lista, int tipo, int offset, int tamanho, int offset_registro) {
 	FILE *fp = NULL;
 	fp = fopen(lista->nomeData, "r");
 	fseek(fp, offset, SEEK_SET);
 	lista->index = (INDEX*) realloc(lista->index, sizeof(INDEX)*(lista->n_index+1));
 	lista->index[lista->n_index].chave = malloc(tamanho);
 	fread(lista->index[lista->n_index].chave, tamanho, 1, fp);
-	lista->index[lista->n_index].offset = offset;
+	lista->index[lista->n_index].offset = offset_registro;
 	lista->tipoIndex = tipo;
 	lista->n_index++;
 	fclose(fp);
@@ -275,7 +275,7 @@ void criaArquivoIndex(LISTA *lista) {
 			lista->n_index = 0;
 			for(j = 0; j < lista->n_registros; j++) {
 				//criar vetor de indexs
-				novoIndex(lista, lista->campo[i].tipo, (((lista->tamanhoRegistro)*j)+soma), lista->campo[i].tamanho);
+				novoIndex(lista, lista->campo[i].tipo, (((lista->tamanhoRegistro)*j)+soma), lista->campo[i].tamanho, j*lista->tamanhoRegistro);
 			}
 			//ordenar o vetor de index
 			if(lista->campo[i].tipo == INT) {
