@@ -17,7 +17,7 @@ typedef struct {
 typedef struct {
 	void *chave;
 	int offset;
-} INDEX; //AINDA NAO USEI
+} INDEX; //USEI
 
 typedef struct {
 	void **registro; //AINDA NAO USEI
@@ -333,6 +333,31 @@ void dump_index(LISTA *lista) {
 	}
 }
 
+void insert(LISTA *lista) {
+	void *dado = NULL;
+	int i;
+	FILE *fp = NULL;
+	fp = fopen(lista->nomeData, "a");
+	for(i = 0; i < lista->n_campos; i++) {
+		dado = malloc(lista->campo[i].tamanho);
+		switch(lista->campo[i].tipo) {
+			case INT:
+				scanf("%d", (int*)dado);
+				break;
+			case DOUBLE:
+				scanf("%lf", (double*)dado);
+				break;
+			case CHAR:
+				scanf("%s", (char*)dado);
+				break;
+		}
+		fwrite(dado, lista->campo[i].tamanho, 1, fp);
+		free(dado);
+		lista->n_registros++;
+	}
+	fclose(fp);
+}
+
 void liberaCampos(LISTA *lista) {
 	int i, n;
 	n = lista->n_campos;
@@ -359,9 +384,10 @@ int main (int argc, char *arg[]) {
 		if(!strcmp(opt, "dump_schema")) dump_schema(lista);
 		if(!strcmp(opt, "dump_data")) dump_data(lista);
 		if(!strcmp(opt, "dump_index")) dump_index(lista);
+		if(!strcmp(opt, "insert")) insert(lista);
 	} while(strcmp(opt, "exit"));
 	
-	//falta trabalhar com os indices...
+	//falta fazer o insert
 	
 	free(opt);
 	liberaCampos(lista);
