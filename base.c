@@ -22,10 +22,10 @@ typedef struct {
 typedef struct {
 	void **registro; //AINDA NAO USEI
 	int n_registros;
+	int n_index;
 	CAMPO *campo;
 	INDEX *index; //USEI
 	int n_campos;
-	int n_index;
 	int tipoIndex;
 	char *nomeArquivo;
 	char *nomeData;
@@ -270,6 +270,7 @@ void criaArquivoIndex(LISTA *lista) {
 	fseek(fp, 0, SEEK_END);
 	lista->n_registros = ((ftell(fp))/(double)(lista->tamanhoRegistro));
 	fclose(fp);
+	lista->n_index = 0;
 	for (i = 0; i < lista->n_campos; i++) {
 		if(lista->campo[i].order) {
 			lista->n_index = 0;
@@ -295,6 +296,7 @@ void criaArquivoIndex(LISTA *lista) {
 		}
 		soma += lista->campo[i].tamanho;
 	}
+	lista->n_registros = lista->n_index;
 }
 
 void dump_index(LISTA *lista) {
@@ -310,7 +312,7 @@ void dump_index(LISTA *lista) {
 		nomeIndex = strcat(nomeIndex, ".idx");
 		fp = fopen(nomeIndex, "r");
 		if(fp != NULL) {
-			for(j = 0; j < lista->n_registros; j++) {
+			for(j = 0; j < lista->n_index; j++) {
 				p = malloc(lista->campo[i].tamanho);
 				fread(p, lista->campo[i].tamanho, 1, fp);
 				fread(&offset, sizeof(int), 1, fp);
@@ -353,9 +355,16 @@ void insert(LISTA *lista) {
 		}
 		fwrite(dado, lista->campo[i].tamanho, 1, fp);
 		free(dado);
-		lista->n_registros++;
 	}
 	fclose(fp);
+}
+
+void procura(LISTA *lista) {
+	int i;
+	char *campo = NULL;
+	campo = (char*)malloc(30*sizeof(char));
+	scanf("%s", campo);
+	
 }
 
 void liberaCampos(LISTA *lista) {
@@ -385,9 +394,11 @@ int main (int argc, char *arg[]) {
 		if(!strcmp(opt, "dump_data")) dump_data(lista);
 		if(!strcmp(opt, "dump_index")) dump_index(lista);
 		if(!strcmp(opt, "insert")) insert(lista);
+		if(!strcmp(opt, "update_index")) criaArquivoIndex(lista);
+		if(!strcmp(opt, "select")) procura(lista);
 	} while(strcmp(opt, "exit"));
 	
-	//falta fazer o insert
+	//falta fazer o select
 	
 	free(opt);
 	liberaCampos(lista);
