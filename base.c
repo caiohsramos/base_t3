@@ -359,12 +359,126 @@ void insert(LISTA *lista) {
 	fclose(fp);
 }
 
+int buscaBinaria(LISTA *lista, void *chave, int i, int *passo) {
+	int inf = 0, sup, meio, tamanho, offset;
+	char *nomeIndex = NULL;
+	FILE *fp = NULL;
+	void *dado = NULL;
+	nomeIndex = (char*) malloc(sizeof(char)*30);
+	(*passo) = 0;
+	strcpy(nomeIndex, lista->nomeArquivo);
+	nomeIndex = strcat(nomeIndex, "-");
+	nomeIndex = strcat(nomeIndex, lista->campo[i].nome);
+	nomeIndex = strcat(nomeIndex, ".idx");
+	fp = fopen(nomeIndex, "r");
+	tamanho = (lista->campo[i].tamanho);
+	dado = malloc(tamanho);
+	sup = (lista->n_index-1);
+	while (inf <= sup) {
+		(*passo) += 1;
+		meio = (inf + sup)/2;
+		fseek(fp, (meio*(tamanho+4)), SEEK_SET);
+		fread(dado, tamanho, 1, fp);
+		if (memcmp(chave, dado, tamanho) == 0) {
+			fread(&offset, sizeof(int), 1, fp);
+			free(nomeIndex);
+			fclose(fp);
+			free(dado);
+			return offset;
+		}
+		else if (memcmp(chave,  dado, tamanho) < 0)	sup = meio-1;
+		else inf = meio+1;
+	}
+	free(dado);
+	free(nomeIndex);
+	fclose(fp);
+	return -1;   // não encontrado
+}
+
+void imprimeConteudo(LISTA *lista, int offset, char *campo_impresso) {
+	int soma = 0, i;
+	FILE *fp = NULL;
+	void *dado = NULL;
+	i = 0;
+	while(strcmp(campo_impresso, lista->campo[i].nome)) {
+		soma += lista->campo[i].tamanho;
+		i++;
+	}
+	fp = fopen(lista->nomeData, "r");
+	fseek(fp, offset, SEEK_SET);
+	fseek(fp, soma, SEEK_CUR);
+	switch(lista->campo[i].tipo) {
+		case INT:
+			dado = malloc(sizeof(int));
+			fread(dado, sizeof(int), 1, fp);
+			printf("%d\n", *(int*)dado);
+			break;
+		case DOUBLE:
+			dado = malloc(sizeof(double));
+			fread(dado, sizeof(double), 1, fp);
+			printf("%.2lf\n", *(double*)dado);
+			break;
+		case CHAR:
+			dado = malloc(lista->campo[i].tamanho);
+			fread(dado, lista->campo[i].tamanho, 1, fp);
+			printf("%s\n", (char*)dado);
+			break;
+	}
+	fclose(fp);
+	free(dado);
+}
+
+int buscaSeq(LISTA *lista, void *chave, int *passo, int i) {
+	int j;
+	for(j = 0; j < lista->n_registros; j++) {
+		//continuar daqui
+	} 
+} 
+
 void procura(LISTA *lista) {
-	int i;
+	int i, offset, passo, encontrado = 0;
 	char *campo = NULL;
+	char *campo_impresso = NULL;
+	void *termo = NULL;
 	campo = (char*)malloc(30*sizeof(char));
+	campo_impresso = (char*)malloc(30*sizeof(char));
 	scanf("%s", campo);
-	
+	for(i = 0; i < lista->n_campos; i++) {
+		if(!strcmp(campo, lista->campo[i].nome)) {
+			if(lista->campo[i].order) {
+				encontrado = 1;
+				break;
+			}
+		}
+	}
+	if(encontrado) {
+		switch(lista->campo[i].tipo) {
+			case INT:
+				termo = malloc(sizeof(int));
+				scanf("%d", (int*)termo);
+				break;
+			case DOUBLE:
+				termo = malloc(sizeof(double));
+				scanf("%lf", (double*)termo);
+				break;
+			case CHAR:
+				termo = malloc(lista->campo[i].tamanho);
+				scanf("%s", (char*)termo);
+				break;
+		}
+		scanf("%s", campo_impresso);
+		offset = buscaBinaria(lista, termo, i, &passo);
+		if(offset == -1) {
+			//busca sequencial no .data
+			buscaSeq(lista, termo, &passo, i);
+		}
+		printf("%d\n", passo);
+		if(offset == -1) printf("value not found\n");
+		else imprimeConteudo(lista, offset, campo_impresso);
+	} else printf("index not found\n");
+	free(campo);
+	free(campo_impresso);
+	free(termo);
 }
 
 void liberaCampos(LISTA *lista) {
@@ -398,7 +512,6 @@ int main (int argc, char *arg[]) {
 		if(!strcmp(opt, "select")) procura(lista);
 	} while(strcmp(opt, "exit"));
 	
-	//falta fazer o select
 	
 	free(opt);
 	liberaCampos(lista);
