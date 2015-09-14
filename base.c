@@ -20,7 +20,6 @@ typedef struct {
 } INDEX; //USEI
 
 typedef struct {
-	void **registro; //AINDA NAO USEI
 	int n_registros;
 	int n_index;
 	CAMPO *campo;
@@ -47,7 +46,6 @@ LISTA *criarLista (void) {
 	lista->n_index = 0;
 	lista->tamanhoRegistro = 0;
 	lista->tipoIndex = 0;
-	lista->registro = NULL;
 	lista->index = NULL;
 	lista->nomeData = NULL;
 	lista->nomeArquivo = NULL;
@@ -296,7 +294,7 @@ void criaArquivoIndex(LISTA *lista) {
 		}
 		soma += lista->campo[i].tamanho;
 	}
-	lista->n_registros = lista->n_index;
+	lista->n_index = lista->n_registros;
 }
 
 void dump_index(LISTA *lista) {
@@ -379,15 +377,27 @@ int buscaBinaria(LISTA *lista, void *chave, int i, int *passo) {
 		meio = (inf + sup)/2;
 		fseek(fp, (meio*(tamanho+4)), SEEK_SET);
 		fread(dado, tamanho, 1, fp);
-		if (memcmp(chave, dado, tamanho) == 0) {
-			fread(&offset, sizeof(int), 1, fp);
-			free(nomeIndex);
-			fclose(fp);
-			free(dado);
-			return offset;
+		if(lista->campo[i].tipo == CHAR) {
+			if (strcmp((char*)chave, (char*)dado) == 0) {
+				fread(&offset, sizeof(int), 1, fp);
+				free(nomeIndex);
+				fclose(fp);
+				free(dado);
+				return offset;
+			}
+			else if (strcmp((char*)chave, (char*)dado) < 0)	sup = meio-1;
+			else inf = meio+1;
+		} else {
+			if (memcmp(chave, dado, tamanho) == 0) {
+				fread(&offset, sizeof(int), 1, fp);
+				free(nomeIndex);
+				fclose(fp);
+				free(dado);
+				return offset;
+			}
+			else if (memcmp(chave,  dado, tamanho) < 0)	sup = meio-1;
+			else inf = meio+1;
 		}
-		else if (memcmp(chave,  dado, tamanho) < 0)	sup = meio-1;
-		else inf = meio+1;
 	}
 	free(dado);
 	free(nomeIndex);
@@ -429,10 +439,46 @@ void imprimeConteudo(LISTA *lista, int offset, char *campo_impresso) {
 }
 
 int buscaSeq(LISTA *lista, void *chave, int *passo, int i) {
-	int j;
-	for(j = 0; j < lista->n_registros; j++) {
-		//continuar daqui
-	} 
+	int j, soma = 0, n, tamanho;
+	void *dado = NULL;
+	FILE *fp = NULL;
+	j = 0;
+	while(strcmp(lista->campo[j].nome, lista->campo[i].nome)) {
+		soma += lista->campo[i].tamanho;
+		j++;
+	}
+	//printf("Campo: %s\n", lista->campo[j].nome);
+	fp = fopen(lista->nomeData, "r");
+	fseek(fp, 0, SEEK_END);
+	lista->n_registros = ((ftell(fp))/(double)(lista->tamanhoRegistro));
+	n = lista->n_index;
+	//printf("Numero de index: %d\n", n);
+	//printf("Numero de reg: %d\n", lista->n_registros);
+	tamanho = (lista->campo[i].tamanho);
+	//printf("tamanho: %d\n", tamanho);
+	//fseek(fp, (n*lista->tamanhoRegistro), SEEK_SET);
+	for(j = 0; j < (lista->n_registros - n); j++) {
+		(*passo) += 1;
+		dado = malloc(tamanho);
+		fseek(fp, ((j*lista->tamanhoRegistro)+soma+(n*lista->tamanhoRegistro)), SEEK_SET);
+		fread(dado, tamanho, 1, fp);
+		//printf("dado(int) %d\n", *(int*)dado);
+		if(lista->campo[i].tipo == CHAR) {
+			if(!strcmp((char*)dado, (char*)chave)) {
+				fclose(fp);
+				free(dado);
+				return ((j+n) * (lista->tamanhoRegistro));
+			}
+		} else if(!memcmp(chave, dado, tamanho)) {
+			//printf("Encontrado na sequecial\n");
+			fclose(fp);
+			free(dado);
+			return ((j+n) * (lista->tamanhoRegistro));
+		}
+		free(dado);
+	}
+	fclose(fp);
+	return -1;
 } 
 
 void procura(LISTA *lista) {
@@ -470,7 +516,8 @@ void procura(LISTA *lista) {
 		offset = buscaBinaria(lista, termo, i, &passo);
 		if(offset == -1) {
 			//busca sequencial no .data
-			buscaSeq(lista, termo, &passo, i);
+			//printf("Entrei na sequencial...\n");
+			offset = buscaSeq(lista, termo, &passo, i);
 		}
 		printf("%d\n", passo);
 		if(offset == -1) printf("value not found\n");
