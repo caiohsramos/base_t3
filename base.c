@@ -444,10 +444,10 @@ int buscaSeq(LISTA *lista, void *chave, int *passo, int i) {
 	FILE *fp = NULL;
 	j = 0;
 	while(strcmp(lista->campo[j].nome, lista->campo[i].nome)) {
-		soma += lista->campo[i].tamanho;
+		soma += lista->campo[j].tamanho;
 		j++;
 	}
-	//printf("Campo: %s\n", lista->campo[j].nome);
+	//printf("Soma: %d\n", soma);
 	fp = fopen(lista->nomeData, "r");
 	fseek(fp, 0, SEEK_END);
 	lista->n_registros = ((ftell(fp))/(double)(lista->tamanhoRegistro));
@@ -456,11 +456,13 @@ int buscaSeq(LISTA *lista, void *chave, int *passo, int i) {
 	//printf("Numero de reg: %d\n", lista->n_registros);
 	tamanho = (lista->campo[i].tamanho);
 	//printf("tamanho: %d\n", tamanho);
+	//printf("TIPO: %d\n", lista->campo[i].tipo);
 	//fseek(fp, (n*lista->tamanhoRegistro), SEEK_SET);
 	for(j = 0; j < (lista->n_registros - n); j++) {
 		(*passo) += 1;
 		dado = malloc(tamanho);
-		fseek(fp, ((j*lista->tamanhoRegistro)+soma+(n*lista->tamanhoRegistro)), SEEK_SET);
+		fseek(fp, ((j*lista->tamanhoRegistro)+(n*lista->tamanhoRegistro)), SEEK_SET);
+		fseek(fp, soma, SEEK_CUR);
 		fread(dado, tamanho, 1, fp);
 		//printf("dado(int) %d\n", *(int*)dado);
 		if(lista->campo[i].tipo == CHAR) {
